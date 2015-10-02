@@ -53,6 +53,7 @@ module.exports = function (grunt) {
         watch: {
             options: {
                 livereload: true,
+                // disabled to maintain config values set in grunt.event.on
                 spawn: false
             },
             // perform page reload if any views or CSS are updated
@@ -101,18 +102,31 @@ module.exports = function (grunt) {
     grunt.loadNpmTasks("grunt-text-replace");
     grunt.loadNpmTasks("grunt-contrib-uglify");
 
-    // checks for command arguments folder (or fl) and subfolder (or sf)
-    // if using fl and/or sf, copies values to folder and subfolder, respectively
-    function checkArgs() {
-        if ((!grunt.option("folder") && !grunt.option("fl")) || (!grunt.option("subfolder") && !grunt.option("sf"))) {
+    // are a folder and subfolder specified?
+    function dirSpecified() {
+        return (grunt.option("folder") || grunt.option("fl")) && (grunt.option("subfolder") || grunt.option("sf"));
+    }
+
+    // throw Error if folder and subfolder are not specified
+    function requireArgs() {
+        if (!dirSpecified()) {
             throw Error("You need to provide a folder and subfolder.");
         }
+    }
+
+    // checks for command arguments folder (or fl) and subfolder (or sf)
+    // if using fl and/or sf, copies values to folder and subfolder, respectively
+    function parseArgs() {
         if (grunt.option("fl")) {
             grunt.config.set("folder", grunt.option("fl"));
         }
         if (grunt.option("sf")) {
             grunt.config.set("subfolder", grunt.option("sf"));
         }
+    }
+
+    function enableWatchSpawn() {
+        grunt.config.set("watch.options.spawn", true);
     }
 
     // gets all the folders in a given directory
@@ -138,7 +152,8 @@ module.exports = function (grunt) {
     // bundles all JS found in given folder/subfolder dir
     // ex: grunt bundle --fl=Class --sf=Admin
     grunt.registerTask("bundle", function (arg) {
-        checkArgs();
+        requireArgs();
+        parseArgs();
         if (containsJSXFiles(config.scriptsDir + "/" + grunt.config("folder") + "/" + grunt.config("subfolder"))) {
             grunt.task.run("shell:jsx");
         }
@@ -149,7 +164,14 @@ module.exports = function (grunt) {
     // starts watch task for livereload
     // ex: grunt dev
     grunt.registerTask("dev", function (arg) {
-        grunt.task.run("watch");
+        if (dirSpecified()) {
+            parseArgs();
+            enableWatchSpawn();
+            grunt.task.run("browserify:default", "watch");
+        }
+        else {
+            grunt.task.run("watch");
+        }
     });
 
     // builds all JS for production

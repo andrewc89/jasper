@@ -7,22 +7,23 @@ module.exports = function (grunt) {
 
         projectDir: grunt.option("projectDir"),
         scriptsDir: config.scriptsDir,
-        layoutDir: config.layoutDir,
+        layoutSrcDir: config.layoutSrcDir,
+        layoutDestDir: config.layoutDestDir,
         layoutEntry: config.layoutEntry,
 
         browserify: {
             // bundles layout JS
-            default: {
-                src: ["<%= layoutDir %>/<%= layoutEntry %>"],
-                dest: "<%= layoutDir %>/bundle/dev.js"
+            layout: {
+                src: ["<%= layoutSrcDir %>/<%= layoutEntry %>"],
+                dest: "<%= layoutSrcDir %>/bundle/dev.js"
             },
         },
 
         uglify: {
             // uglifys dev.js -> prod.js
-            default: {
-                src: ["<%= layoutDir %>/bundle/dev.js"],
-                dest: "<%= layoutDir %>/bundle/prod.js"
+            layout: {
+                src: ["<%= layoutSrcDir %>/bundle/dev.js"],
+                dest: "<%= layoutSrcDir %>/bundle/prod.js"
             }
         },
 
@@ -37,11 +38,11 @@ module.exports = function (grunt) {
             },
             // copy bundled layout JS to project
             copy_dev: {
-                command: "xcopy /f /y \"<%= layoutDir %>/bundle/dev.js\" \"<%= projectDir %>/<%= scriptsDir %>/Shared/Layout/bundle/*\""
+                command: "xcopy /f /y \"<%= layoutSrcDir %>/bundle/dev.js\" \"<%= projectDir %>/<%= scriptsDir %>/<%= layoutDestDir %>/bundle/*\""
             },
             // copy production layout JS to project
             copy_prod: {
-                command: "xcopy /f /y \"<%= layoutDir %>/bundle/prod.js\" \"<%= projectDir %>/<%= scriptsDir %>/Shared/Layout/bundle/*\""
+                command: "xcopy /f /y \"<%= layoutSrcDir %>/bundle/prod.js\" \"<%= projectDir %>/<%= scriptsDir %>/<%= layoutDestDir %>/bundle/*\""
             }
         },
     });
@@ -53,7 +54,7 @@ module.exports = function (grunt) {
     // bundle layout JS
     // copy bundled JS to each project
     grunt.registerTask("bundle", function () {
-        grunt.task.run("browserify:default");
+        grunt.task.run("browserify:layout");
         config.projects.forEach(function (projectDir) {
             grunt.task.run("copy_dev:" + projectDir);
         });
@@ -67,7 +68,7 @@ module.exports = function (grunt) {
 
     // iterate through all projects, run project-specific task
     grunt.registerTask("prod", function (arg) {
-        grunt.task.run("browserify:default", "uglify:default");
+        grunt.task.run("browserify:layout", "uglify:layout");
         config.projects.forEach(function (projectDir) {
             grunt.task.run("prod-project:" + projectDir);
         });
