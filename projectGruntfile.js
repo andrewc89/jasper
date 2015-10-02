@@ -15,8 +15,8 @@ module.exports = function (grunt) {
 
         // config level instances
         scriptsDir: config.scriptsDir,
-        folder: grunt.option("folder"),
-        subfolder: grunt.option("subfolder"),
+        folder: grunt.option("folder") || grunt.option("fl"),
+        subfolder: grunt.option("subfolder") || grunt.option("sf"),
 
         browserify: {
             options: {
@@ -114,17 +114,6 @@ module.exports = function (grunt) {
         }
     }
 
-    // checks for command arguments folder (or fl) and subfolder (or sf)
-    // if using fl and/or sf, copies values to folder and subfolder, respectively
-    function parseArgs() {
-        if (grunt.option("fl")) {
-            grunt.config.set("folder", grunt.option("fl"));
-        }
-        if (grunt.option("sf")) {
-            grunt.config.set("subfolder", grunt.option("sf"));
-        }
-    }
-
     function enableWatchSpawn() {
         grunt.config.set("watch.options.spawn", true);
     }
@@ -153,7 +142,6 @@ module.exports = function (grunt) {
     // ex: grunt bundle --fl=Class --sf=Admin
     grunt.registerTask("bundle", function (arg) {
         requireArgs();
-        parseArgs();
         if (containsJSXFiles(config.scriptsDir + "/" + grunt.config("folder") + "/" + grunt.config("subfolder"))) {
             grunt.task.run("shell:jsx");
         }
@@ -165,7 +153,6 @@ module.exports = function (grunt) {
     // ex: grunt dev
     grunt.registerTask("dev", function (arg) {
         if (dirSpecified()) {
-            parseArgs();
             enableWatchSpawn();
             grunt.task.run("browserify:default", "watch");
         }
