@@ -154,7 +154,7 @@ module.exports = function (grunt) {
     grunt.registerTask("dev", function (arg) {
         if (dirSpecified()) {
             enableWatchSpawn();
-            grunt.task.run("browserify:default", "watch");
+            grunt.task.run("bundle", "watch");
         }
         else {
             grunt.task.run("watch");
