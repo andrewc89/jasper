@@ -1,0 +1,191 @@
+
+var fs = require("fs");
+var path = require("path");
+var pathmodify = require("pathmodify");
+var config = require("./config");
+
+module.exports = function (grunt) {
+
+    function browserifyConfigure(b) {
+        // alias dir for global modules location outside project scope
+        b.plugin(pathmodify(), { mods: [pathmodify.mod.dir("assets", path.resolve(__dirname, config.globalModulesDir))] });
+    }
+
+    grunt.initConfig({
+
+        // config level instances
+        scriptsDir: config.scriptsDir,
+        folder: grunt.option("folder"),
+        subfolder: grunt.option("subfolder"),
+
+        browserify: {
+            options: {
+                configure: browserifyConfigure
+            },
+            // bundles all JS files in dir, ignoring those in bundle dir
+            default: {
+                src: ["<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/**/*.js", "!<%= scriptsDir %>/**/**/bundle/*.js"],
+                dest: "<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/bundle/dev.js"
+            },
+        },
+
+        uglify: {
+            // uglifys dev.js -> prod.js
+            default: {
+                src: ["<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/bundle/dev.js"],
+                dest: "<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/bundle/prod.js"
+            }
+        },
+
+        shell: {
+            options: {
+                stdout: true,
+                failOnError: true,
+            },
+            // run jsx via node because Windows is stupid
+            // compile all JSX files in folder/subfolder dir
+            // output to compiled-jsx/
+            jsx: {
+                command: "node node_modules/react-tools/bin/jsx -x jsx --no-cache-dir <%= scriptsDir %>/<%= folder %>/<%= subfolder %>/ <%= scriptsDir %>/<%= folder %>/<%= subfolder %>/compiled-jsx",
+            }
+        },
+
+        watch: {
+            options: {
+                livereload: true,
+                spawn: false
+            },
+            // perform page reload if any views or CSS are updated
+            // or if project is re-built
+            default: {
+                files: ["Views/**/*.cshtml", "Content/**/*.css", "bin/**/*.dll"],
+            },
+            // compile JSX then bundle if any JSX file is updated
+            jsx: {
+                files: ["<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/**/*.jsx"],
+                tasks: ["shell:jsx", "browserify:default"]
+            },
+            // bundle JS if any JS files are updated, excluding compiled-jsx and bundle dirs
+            js: {
+                files: ["<%= scriptsDir %>/**/**/**/*.js", "!<%= scriptsDir %>/**/**/compiled-jsx/**/*.js", "!<%= scriptsDir %>/**/**/bundle/*.js"],
+                tasks: ["browserify:default"]
+            }
+        },
+
+        replace: {
+            // replace all references to dev.js files with prod.js
+            // for production only
+            prod: {
+                src: ["Views/**/*.cshtml"],
+                overwrite: true,
+                replacements: [{
+                    from: "bundle/dev.js",
+                    to: "bundle/prod.js"
+                }]
+            }
+        },
+    });
+
+    // when JS file changes, set folder and subfolder config values from filepath of changed file
+    grunt.event.on("watch", function (action, filepath, target) {
+        if (target === "js" || target === "jsx") {
+            var split = filepath.split('\\');
+            grunt.config.set("folder", split[1]);
+            grunt.config.set("subfolder", split[2]);
+        }
+    });
+
+    grunt.loadNpmTasks("grunt-browserify");
+    grunt.loadNpmTasks("grunt-contrib-watch");
+    grunt.loadNpmTasks("grunt-shell");
+    grunt.loadNpmTasks("grunt-text-replace");
+    grunt.loadNpmTasks("grunt-contrib-uglify");
+
+    // checks for command arguments folder (or fl) and subfolder (or sf)
+    // if using fl and/or sf, copies values to folder and subfolder, respectively
+    function checkArgs() {
+        if ((!grunt.option("folder") && !grunt.option("fl")) || (!grunt.option("subfolder") && !grunt.option("sf"))) {
+            throw Error("You need to provide a folder and subfolder.");
+        }
+        if (grunt.option("fl")) {
+            grunt.config.set("folder", grunt.option("fl"));
+        }
+        if (grunt.option("sf")) {
+            grunt.config.set("subfolder", grunt.option("sf"));
+        }
+    }
+
+    // gets all the folders in a given directory
+    function getFolders(dir) {
+        return fs.readdirSync(dir)
+            .filter(function (file) {
+                return fs.statSync(path.join(dir, file)).isDirectory();
+            });
+    }
+
+    // checks a given directory recursively for any jsx files
+    function containsJSXFiles(dir) {
+        return fs.readdirSync(dir).some(function (file) {
+            if (fs.statSync(path.join(dir, file)).isDirectory()) {
+                return containsJSXFiles(path.join(dir, file));
+            }
+            else {
+                return file.slice(-4) === ".jsx";
+            }
+        });
+    }
+
+    // bundles all JS found in given folder/subfolder dir
+    // ex: grunt bundle --fl=Class --sf=Admin
+    grunt.registerTask("bundle", function (arg) {
+        checkArgs();
+        if (containsJSXFiles(config.scriptsDir + "/" + grunt.config("folder") + "/" + grunt.config("subfolder"))) {
+            grunt.task.run("shell:jsx");
+        }
+        grunt.task.run("browserify:default");
+    });
+
+    // for local development
+    // starts watch task for livereload
+    // ex: grunt dev
+    grunt.registerTask("dev", function (arg) {
+        grunt.task.run("watch");
+    });
+
+    // builds all JS for production
+    // foreach folder/subfolder dir in Javascript:
+    //     checks for JSX files
+    //     passes args to separate task to queue the task for each specific dir (see footnote)
+    // replaces all references to "dev.js" with "prod.js"
+    grunt.registerTask("prod", function (arg) {
+        getFolders(config.scriptsDir).forEach(function (folder) {
+            getFolders(config.scriptsDir + "/" + folder).forEach(function (subfolder) {
+                var dir = config.scriptsDir + "/" + folder + "/" + subfolder;
+                var jsx = containsJSXFiles(dir);
+                grunt.task.run("prod-folder:" + folder + ":" + subfolder + ":" + jsx);
+            });
+        });
+        grunt.task.run("replace");
+    });
+
+    // creates task to build production JS for each folder/subfolder dir in Javascript
+    // sets folder and subfolder values in config
+    // adds appropriate tasks to array then queues task to run
+    grunt.registerTask("prod-folder", function (fl, sf, jsx) {
+        grunt.config.set("folder", fl);
+        grunt.config.set("subfolder", sf);
+        var tasks = [];
+        if (jsx === "true") {
+            tasks.push("shell:jsx");
+        }
+        tasks.push("browserify:default", "uglify:default");
+        grunt.task.run(tasks);
+    });
+};
+
+/*
+Grunt queues all tasks before executing. The config variables (folder, subfolder)
+are passed in as arguments to the prod-folder task in order to maintain the scope of that queued task.
+
+see: http://gruntjs.com/api/grunt.task#grunt.task.run
+*/
