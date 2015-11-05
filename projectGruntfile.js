@@ -24,7 +24,7 @@ module.exports = function (grunt) {
             },
             // bundles all JS files in dir, ignoring those in bundle dir
             default: {
-                src: ["<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/**/*.js", "!<%= scriptsDir %>/**/**/bundle/*.js"],
+                src: ["<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/app.js"],
                 dest: "<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/bundle/dev.js"
             },
         },
@@ -63,7 +63,7 @@ module.exports = function (grunt) {
             },
             // compile JSX then bundle if any JSX file is updated
             jsx: {
-                files: ["<%= scriptsDir %>/<%= folder %>/<%= subfolder %>/**/*.jsx"],
+                files: ["<%= scriptsDir %>/**/**/**/*.jsx"],
                 tasks: ["shell:jsx", "browserify:default"]
             },
             // bundle JS if any JS files are updated, excluding compiled-jsx and bundle dirs
